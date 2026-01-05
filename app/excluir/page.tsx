@@ -3,8 +3,8 @@
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/ui/appidebar";
 import { CadastroAtualizacao } from "@/components/pages/cadastro-atualizacoes";
-import { ExcluirAtualizacoes } from "@/components/pages/excluir-atualizacoes";
 import { ClientOnly } from "@/components/ui/clientonly";
+import ExcluirAtualizacoes from "@/components/pages/excluir-atualizacoes";
 
 export default function Home() {
   return (

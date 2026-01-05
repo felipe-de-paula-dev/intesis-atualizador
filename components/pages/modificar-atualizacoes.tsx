@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { 
   Search, 
   Save, 
@@ -18,43 +18,49 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from ".
 import { Checkbox } from "../ui/checkbox";
 import { ScrollArea } from "../ui/scroll-area";
 import Link from "next/link";
+import axios from "axios";
+import { Arquivo, Empresa } from "./cadastro-atualizacoes";
 
-const LISTA_ARQUIVOS_DISPONIVEIS = [
-  { id: 101, nome: "relatorio_fin.exe", tamanho: "15MB" },
-  { id: 102, nome: "kernel_v2.dll", tamanho: "2MB" },
-  { id: 103, nome: "patch_sat.zip", tamanho: "45MB" },
-];
+export interface Atualizacao {
+  id: number;
+  descricao: string;
+  data: Date
+  hom: boolean,
+  prd: boolean,
+  id_aplicacao?: number;
+  aplicacao?: {
+    id: number;
+    nome: string;
+  };
+  arquivos_ids: number[];
+  empresas_ids: number[];
+  atualizacaoArquivos: any[];
+  atualizacaoEmpresas: any[];
+}
 
-const LISTA_CLIENTES_DISPONIVEIS = [
-  { id: 1, codigo: "1010", nome: "Posto Central Ltda", razao: "Central Combustíveis" },
-  { id: 2, codigo: "2020", nome: "Mercado Silva", razao: "Silva Alimentos ME" },
-  { id: 3, codigo: "3030", nome: "Farmácia Viva", razao: "Viva Saúde S.A" },
-    { id: 4, codigo: "3030", nome: "Farmácia Viva", razao: "Viva Saúde S.A" },
-];
 
-export function ModificarAtualizacao() {
-  const dataAtual = new Date().toLocaleDateString('pt-BR');
-  
+export default function ModificarAtualizacao({ idAtualizacao }: { idAtualizacao: number }) {
   const [aplicacao, setAplicacao] = useState("1");
   const [buscaArquivo, setBuscaArquivo] = useState("");
   const [buscaCliente, setBuscaCliente] = useState("");
-  const [selectedArquivos, setSelectedArquivos] = useState<number[]>([]);
-  const [selectedClientes, setSelectedClientes] = useState<number[]>([]);
+  const [selectedArquivos, setSelectedArquivos] = useState<Arquivo[]>([]);
+  const [selectedClientes, setSelectedClientes] = useState<Empresa[]>([]);
+  const [atualizacao, setAtualizacao] = useState<Atualizacao | null>(null);
 
   const arquivosFiltrados = useMemo(() => 
-    LISTA_ARQUIVOS_DISPONIVEIS.filter(f => f.nome.toLowerCase().includes(buscaArquivo.toLowerCase())), 
-  [buscaArquivo]);
+    selectedArquivos.filter(f => f.nome.toLowerCase().includes(buscaArquivo.toLowerCase())), 
+  [buscaArquivo, selectedArquivos]);
 
   const clientesFiltrados = useMemo(() => 
-    LISTA_CLIENTES_DISPONIVEIS.filter(c => c.nome.toLowerCase().includes(buscaCliente.toLowerCase()) || c.codigo.includes(buscaCliente)),
-  [buscaCliente]);
+    selectedClientes.filter(c => c.nomeFantasia.toLowerCase().includes(buscaCliente.toLowerCase())),
+  [buscaCliente, selectedClientes]);
 
-  const toggleArquivo = (id: number) => {
-    setSelectedArquivos(prev => prev.includes(id) ? prev.filter(a => a !== id) : [...prev, id]);
+  const toggleArquivo = (arquivo: Arquivo) => {
+    setSelectedArquivos(prev => prev.includes(arquivo) ? prev.filter(a => a !== arquivo) : [...prev, arquivo]);
   };
 
-  const toggleCliente = (id: number) => {
-    setSelectedClientes(prev => prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]);
+  const toggleCliente = (cliente: Empresa) => {
+    setSelectedClientes(prev => prev.includes(cliente) ? prev.filter(c => c !== cliente) : [...prev, cliente]);
   };
 
   const handleSalvar = async () => {
@@ -68,6 +74,25 @@ export function ModificarAtualizacao() {
     console.log("Enviando para API:", payload);
     alert("Atualização salva com sucesso!");
   };
+
+  const carregarAtualizacao = async () => {
+    try {
+      const response = await axios.get<Atualizacao>(
+        `http://192.168.0.19:8080/api/atualizacao?id=${idAtualizacao}`
+      );
+      
+      setAtualizacao(response.data);
+      setAplicacao(response.data.aplicacao?.id.toString() || "1");
+      setSelectedArquivos(response.data.atualizacaoArquivos.map(a => a.arquivo) || []);
+      setSelectedClientes(response.data.atualizacaoEmpresas.map(e => e.empresa)  || []);
+    } catch (error) {
+      console.error("Erro ao carregar atualização:", error);
+    }
+  };
+
+  useEffect(() => {
+    carregarAtualizacao();
+  },[idAtualizacao])
 
   return (
     <div className="p-6 space-y-3 w-full mx-auto">
@@ -87,6 +112,15 @@ export function ModificarAtualizacao() {
           </Button>
         </div>
       </div>
+
+      <div className="relative w-full">
+        <Input 
+        placeholder="Descrição da atualização..." 
+        className="h-8 text-xs" 
+        disabled={true}
+        value={atualizacao ? atualizacao.descricao : ''}
+      />
+    </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="md:col-span-1 space-y-4 bg-slate-50 p-4 rounded-xl border">
@@ -108,7 +142,7 @@ export function ModificarAtualizacao() {
             <Label className="text-xs uppercase font-bold text-slate-500">Data Atual</Label>
             <div className="h-10 px-3 flex items-center gap-2 bg-slate-200/50 border rounded-md text-slate-600 cursor-not-allowed">
               <CalendarIcon size={16} />
-              <span className="text-sm font-medium">{dataAtual}</span>
+              <span className="text-sm font-medium">{atualizacao?.data && new Date(atualizacao.data).toLocaleDateString()}</span>
             </div>
           </div>
 
@@ -137,7 +171,7 @@ export function ModificarAtualizacao() {
                 />
               </div>
             </div>
-            <ScrollArea className="h-[150px]">
+            <ScrollArea className="h-[120px]">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -148,9 +182,9 @@ export function ModificarAtualizacao() {
                 </TableHeader>
                 <TableBody>
                   {arquivosFiltrados.map(f => (
-                    <TableRow key={f.id} className="cursor-pointer" onClick={() => toggleArquivo(f.id)}>
+                    <TableRow key={f.id} className="cursor-pointer" onClick={() => toggleArquivo(f)}>
                       <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
-                        <Checkbox checked={selectedArquivos.includes(f.id)} onCheckedChange={() => toggleArquivo(f.id)} disabled={true} />
+                        <Checkbox checked={selectedArquivos.includes(f)} onCheckedChange={() => toggleArquivo(f)} disabled={true} />
                       </TableCell>
                       <TableCell className="font-medium text-xs">{f.nome}</TableCell>
                       <TableCell className="text-xs text-slate-500">{f.tamanho}</TableCell>
@@ -174,7 +208,7 @@ export function ModificarAtualizacao() {
                 />
               </div>
             </div>
-            <ScrollArea className="h-[150px]">
+            <ScrollArea className="h-[120px]">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -186,13 +220,13 @@ export function ModificarAtualizacao() {
                 </TableHeader>
                 <TableBody>
                   {clientesFiltrados.map(c => (
-                    <TableRow key={c.id} className="cursor-pointer" onClick={() => toggleCliente(c.id)}>
+                    <TableRow key={c.id} className="cursor-pointer" onClick={() => toggleCliente(c)}>
                       <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
-                        <Checkbox checked={selectedClientes.includes(c.id)} onCheckedChange={() => toggleCliente(c.id)} />
+                        <Checkbox checked={selectedClientes.includes(c)} onCheckedChange={() => toggleCliente(c)} disabled={true} />
                       </TableCell>
-                      <TableCell className="text-xs font-bold text-blue-600">{c.codigo}</TableCell>
-                      <TableCell className="text-xs font-medium">{c.nome}</TableCell>
-                      <TableCell className="text-xs text-slate-500">{c.razao}</TableCell>
+                      <TableCell className="text-xs font-bold text-blue-600">{c.id}</TableCell>
+                      <TableCell className="text-xs font-medium">{c.nomeFantasia}</TableCell>
+                      <TableCell className="text-xs text-slate-500">{c.razaoSocial}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

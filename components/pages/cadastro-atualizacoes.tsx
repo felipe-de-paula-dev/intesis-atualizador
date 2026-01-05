@@ -1,5 +1,6 @@
 "use client";
 
+import Swal from 'sweetalert2';
 import React, { useState, useMemo, useEffect } from "react";
 import { 
   Search, 
@@ -8,7 +9,9 @@ import {
   FileIcon, 
   Calendar as CalendarIcon,
   Users,
-  Package
+  Package,
+  File,
+  User
 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -19,6 +22,9 @@ import { Checkbox } from "../ui/checkbox";
 import { ScrollArea } from "../ui/scroll-area";
 import Link from "next/link";
 import { id } from "date-fns/locale/id";
+import { limitarTexto } from "@/app/service/utils";
+import { DataList } from '../utils/DataList';
+import axios from 'axios';
 
 export interface Arquivo {
     id: number;
@@ -50,17 +56,17 @@ export interface Empresa {
   verificarBackup: boolean;  
 }
 
+export type VisaoAtiva = "idle" | "arquivos" | "empresas";
+
 export function CadastroAtualizacao() {
   const dataAtual = new Date().toLocaleDateString('pt-BR');
-  
   const [aplicacao, setAplicacao] = useState("1");
-  const [buscaArquivo, setBuscaArquivo] = useState("");
-  const [buscaCliente, setBuscaCliente] = useState("");
   const [selectedArquivos, setSelectedArquivos] = useState<number[]>([]);
   const [selectedClientes, setSelectedClientes] = useState<number[]>([]);
   const [arquivos, setArquivos] = useState<Arquivo[]>([]);
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
-
+  const [visao, setVisao] = useState<VisaoAtiva>("idle");
+  const [descricao, setDescricao] = useState("");
 
     async function fetchArquivos() {
         const response = await fetch(`http://192.168.0.19:8080/api/arquivo/listar`);
@@ -79,64 +85,25 @@ export function CadastroAtualizacao() {
         fetchEmpresas();    
     },[])
 
-  function selecionarTodosArquivos() {
 
-    if(selectedArquivos.length === arquivos.length) {
-        setSelectedArquivos([]);
-        return;
-    }   
-
-    if (arquivos.length > 0) {
-    const todosIds = arquivos.map(f => f.id);
-        
-        setSelectedArquivos(prev => {
-        const novoSet = new Set([...prev, ...todosIds]);
-        return Array.from(novoSet);
-        });
+  const handleToggleGeneric = (
+  idOrIds: number | number[], 
+  setSelected: React.Dispatch<React.SetStateAction<number[]>>
+) => {
+  setSelected(prev => {
+    const idsToToggle = Array.isArray(idOrIds) ? idOrIds : [idOrIds];
+    
+    if (Array.isArray(idOrIds)) {
+      const others = prev.filter(id => !idsToToggle.includes(id));
+      const allSelected = Array.from(new Set([...prev, ...idsToToggle]));
+      return allSelected;
     }
-  }
 
-  function selecionarTodasEmpresas() {
-
-    if(selectedClientes.length === empresas.length) {
-        setSelectedClientes([]);
-        return;
-    }   
-
-    if (empresas.length > 0) {
-    const todosIds = empresas.map(f => f.id);
-        setSelectedClientes(prev => {
-        const novoSet = new Set([...prev, ...todosIds]);
-        return Array.from(novoSet);
-        });
-    }
-  }
-
-
-
-  const arquivosFiltrados = useMemo(() => {
-    return (arquivos || []).filter(f => 
-        f.nome?.toLowerCase().includes(buscaArquivo.toLowerCase())
-    );
-}, [buscaArquivo, arquivos]);
-
-const clientesFiltrados = useMemo(() => {
-    return (empresas || []).filter(c => {
-        const razao = c.razaoSocial?.toLowerCase() || "";
-        const id = c.id?.toString() || "";
-        const busca = buscaCliente.toLowerCase();
-
-        return razao.includes(busca) || id.includes(busca);
-    });
-}, [buscaCliente, empresas]); 
-
-  const toggleArquivo = (id: number) => {
-    setSelectedArquivos(prev => prev.includes(id) ? prev.filter(a => a !== id) : [...prev, id]);
-  };
-
-  const toggleCliente = (id: number) => {
-    setSelectedClientes(prev => prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]);
-  };
+    return prev.includes(idsToToggle[0])
+      ? prev.filter(i => i !== idsToToggle[0])
+      : [...prev, idsToToggle[0]];
+  });
+};
 
   const handleSalvar = async () => {
     const payload = {
@@ -145,10 +112,49 @@ const clientesFiltrados = useMemo(() => {
       arquivos_ids: selectedArquivos,
       clientes_ids: selectedClientes,
     };
-    
-    console.log("Enviando para API:", payload);
-    alert("Atualização salva com sucesso!");
-  };
+
+    Swal.fire({
+      title: "Confirmação",
+      text: "Deseja salvar esta atualização?",
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonColor: "#3085d6",
+      cancelButtonColor: "#d33",
+      confirmButtonText: "Sim, salvar!",
+      cancelButtonText: "Cancelar"
+    }).then(async (result) => {
+
+      const payload = {
+        descricao: descricao,
+        data: new Date().toISOString(),
+        hom: true,
+        prd: true,
+        id_aplicacao: parseInt(aplicacao),
+        idArquivos: selectedArquivos,
+        idEmpresas: selectedClientes,
+      }
+
+      try{
+      const response = await axios.post("http://192.168.0.19:8080/api/atualizacao/salvar", payload);
+      const data = response.data;
+      if (response.status === 201 || response.status === 200) {
+        Swal.fire({
+          icon: 'success',
+          title: 'Sucesso!',
+          text: data || 'Atualização salva com sucesso.',
+          timer: 3000
+        });
+      }
+      }catch(error: any){
+        Swal.fire({
+          icon: 'error',
+          title: 'Erro!',
+          text: error.response?.data || 'Ocorreu um erro ao salvar a atualização.',
+          timer: 3000
+        });
+      }
+  });
+}
 
   return (
     <div className="p-6 space-y-3 w-full mx-auto">
@@ -167,6 +173,15 @@ const clientesFiltrados = useMemo(() => {
             <Save size={16} /> Salvar Registro
           </Button>
         </div>
+      </div>
+
+      <div className="relative w-full">
+        <Input 
+          placeholder="Descrição da atualização..." 
+          className="h-8 text-xs" 
+          value={descricao}
+          onChange={(e) => setDescricao(e.target.value)}
+        />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -203,84 +218,72 @@ const clientesFiltrados = useMemo(() => {
           </div>
         </div>
 
-        <div className="md:col-span-3 space-y-3">
-          
-          <div className="border rounded-xl bg-white overflow-hidden shadow-sm">
-            <div className="p-4 border-b bg-slate-50 flex justify-between items-center">
-              <h3 className="font-bold text-sm flex items-center gap-2"><FileIcon size={16}/> Seleção de Arquivos</h3>
-              <div className="relative w-64">
-                <Search className="absolute left-2 top-2.5 h-3.5 w-3.5 text-slate-400" />
-                <Input 
-                  placeholder="Filtrar arquivos..." 
-                  className="h-8 pl-8 text-xs" 
-                  value={buscaArquivo}
-                  onChange={(e) => setBuscaArquivo(e.target.value)}
-                />
-              </div>
-            </div>
-            <ScrollArea className="h-[150px]">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-12 text-center"><Checkbox onClick={() => selecionarTodosArquivos()}/></TableHead>
-                    <TableHead>Nome do Arquivo</TableHead>
-                    <TableHead>Tamanho</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {arquivosFiltrados.map(f => (
-                    <TableRow key={f.id} className="cursor-pointer" onClick={() => toggleArquivo(f.id)}>
-                      <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
-                        <Checkbox checked={selectedArquivos.includes(f.id)} onCheckedChange={() => toggleArquivo(f.id)} />
-                      </TableCell>
-                      <TableCell className="font-medium text-xs">{f.nome}</TableCell>
-                      <TableCell className="text-xs text-slate-500">{f.tamanho}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </ScrollArea>
-          </div>
+        <div className='flex flex-col w-max items-center gap-4'>
+          {visao === "idle" && (
+          <p className="text-muted-foreground">Clique em um dos botões abaixo para começar.</p>
+        )}
 
-          <div className="border rounded-xl bg-white overflow-hidden shadow-sm">
-            <div className="p-4 border-b bg-slate-50 flex justify-between items-center">
-              <h3 className="font-bold text-sm flex items-center gap-2"><Users size={16}/> Seleção de Clientes</h3>
-              <div className="relative w-64">
-                <Search className="absolute left-2 top-2.5 h-3.5 w-3.5 text-slate-400" />
-                <Input 
-                  placeholder="Código, Nome ou Razão..." 
-                  className="h-8 pl-8 text-xs" 
-                  value={buscaCliente}
-                  onChange={(e) => setBuscaCliente(e.target.value)}
-                />
-              </div>
-            </div>
-            <ScrollArea className="h-[150px]">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-12 text-center"><Checkbox onClick={() => selecionarTodasEmpresas()}/></TableHead>
-                    <TableHead>Código</TableHead>
-                    <TableHead>Nome Fantasia</TableHead>
-                    <TableHead>Razão Social</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {clientesFiltrados.map(c => (
-                    <TableRow key={c.id} className="cursor-pointer" onClick={() => toggleCliente(c.id)}>
-                      <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
-                        <Checkbox checked={selectedClientes.includes(c.id)} onCheckedChange={() => toggleCliente(c.id)} />
-                      </TableCell>
-                      <TableCell className="text-xs font-bold text-blue-600">{c.id}</TableCell>
-                      <TableCell className="text-xs font-medium">{c.nomeFantasia}</TableCell>
-                      <TableCell className="text-xs text-slate-500">{c.razaoSocial}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </ScrollArea>
-          </div>
+        {visao === "arquivos" && (
+          <DataList
+            title="Listagem de Arquivos"
+            entities={arquivos.map(a => ({
+              id: a.id,
+              label: a.nome,
+              sublabel: a.tamanho
+            }))}
+            selectedIds={selectedArquivos}
+            onToggle={(id) => handleToggleGeneric(id, setSelectedArquivos)}
+            onClose={() => setVisao("idle")}
+          />
+        )}
 
+        {visao === "empresas" && (
+          <DataList
+            title="Listagem de Empresas"
+            entities={empresas.map(e => ({
+              id: e.id,
+              label: e.nomeFantasia,
+              sublabel: e.razaoSocial
+            }))}
+            selectedIds={selectedClientes}
+            onToggle={(id) => handleToggleGeneric(id, setSelectedClientes)}
+            onClose={() => setVisao("idle")}
+          />
+        )}
+
+          <div className='flex gap-4 w-max'>
+            <button 
+            onClick={() => setVisao("arquivos")}
+            className={`
+              flex flex-col items-center justify-center gap-3 p-6 w-full h-36
+              rounded-xl border-2 transition-all duration-200
+              ${visao === 'arquivos' 
+                ? 'border-blue-600 bg-blue-50 text-blue-700 shadow-md ring-2 ring-blue-200' 
+                : 'border-slate-200 bg-white text-slate-600 hover:border-blue-400 hover:bg-slate-50 hover:shadow-sm'}
+            `}
+          >
+            <div className={`p-3 rounded-full ${visao === 'arquivos' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
+              <File size={32} strokeWidth={1.5} />
+            </div>
+            <span className="font-semibold text-sm">Anexar Arquivos</span>
+          </button>
+
+          <button 
+              onClick={() => setVisao("empresas")}
+              className={`
+                flex flex-col items-center justify-center gap-3 p-6 w-full h-36
+                rounded-xl border-2 transition-all duration-200
+                ${visao === 'empresas' 
+                  ? 'border-emerald-600 bg-emerald-50 text-emerald-700 shadow-md ring-2 ring-emerald-200' 
+                  : 'border-slate-200 bg-white text-slate-600 hover:border-emerald-400 hover:bg-slate-50 hover:shadow-sm'}
+              `}
+            >
+              <div className={`p-3 rounded-full ${visao === 'empresas' ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                <User size={32} strokeWidth={1.5} />
+              </div>
+              <span className="font-semibold text-sm">Anexar Empresas</span>
+          </button>
+          </div>
         </div>
       </div>
     </div>

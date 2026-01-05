@@ -11,17 +11,13 @@ import { addDays, set } from "date-fns";
 import { DateRange } from "react-day-picker";
 import { is } from "date-fns/locale";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+import axios from "axios";
+import Swal from "sweetalert2";
+import { Atualizacao } from "./modificar-atualizacoes";
 
-interface Update {
-  id: number;
-  aplicacao: any;
-  data: string;
-  descricao: string;
-}
-
-export function ExcluirAtualizacoes() {
+export default function ExcluirAtualizacoes() {
   const [busca, setBusca] = useState("")
-  const [updates, setUpdates] = useState<Update[]>([])
+  const [updates, setUpdates] = useState<Atualizacao[]>([])
   const [paginaAtual, setPaginaAtual] = useState(0);
   const [totalPaginas, setTotalPaginas] = useState(0);
   const [isFetch, setIsFetch] = useState(false);
@@ -30,6 +26,7 @@ export function ExcluirAtualizacoes() {
     from: new Date(),
     to: addDays(new Date(), 7),
   });
+  const [atualizacaoSelecionada, setAtualizacaoSelecionada] = useState<Atualizacao | null>(null);
 
   const fetchUpdates = async (page: number, isIgnoreDate: boolean) => {
 
@@ -49,8 +46,6 @@ export function ExcluirAtualizacoes() {
 
     if (aplicacao !== "0") params.append("aplicacao", aplicacao);
 
-    console.log(`http://192.168.0.19:8080/api/atualizacao/pesquisar?${params.toString()}`)
-
     const response = await fetch(`http://192.168.0.19:8080/api/atualizacao/pesquisar?${params.toString()}`);
 
     const data = await response.json();
@@ -60,7 +55,7 @@ export function ExcluirAtualizacoes() {
 
   useEffect(() => {
     fetchUpdates(paginaAtual, true);
-  }, [paginaAtual, aplicacao]);
+  }, [paginaAtual, aplicacao, atualizacaoSelecionada]);
 
 
   useEffect(() => {
@@ -71,8 +66,21 @@ export function ExcluirAtualizacoes() {
     return () => clearTimeout(timer);
   }, [isFetch]);
 
-  const excluirUpdate = (id: number) => {
-    setUpdates(updates.filter(u => u.id !== id))
+  const  excluirUpdate = async (id: number) => {
+    try{
+      const response: any = await axios.delete(`http://192.168.0.19:8080/api/atualizacao?id=${id}`);
+      if(response.status === 200 || response.status === 204){
+        Swal.fire({
+          title: 'Sucesso!',
+          text: 'Atualização excluída com sucesso.',
+          icon: 'success',
+          confirmButtonText: 'OK'
+        });
+        setUpdates(updates.filter(u => u.id !== id));
+      }
+    } catch (error) {
+      console.error("Erro ao excluir atualização:", error);
+    }
   }
 
   return (
@@ -111,9 +119,10 @@ export function ExcluirAtualizacoes() {
         </Button>
         </div>
 
-  
-        <Button className="bg-red-600 hover:bg-red-700 text-white shadow-sm">
-            <Link href={"/"}>Excluir Atualizacao</Link>
+
+
+        <Button className="bg-red-600 hover:bg-red-700 text-white shadow-sm" onClick={() => excluirUpdate(atualizacaoSelecionada ? atualizacaoSelecionada.id : 0)} disabled={!atualizacaoSelecionada}>
+            Excluir Atualização
         </Button>
       </div>
 
@@ -155,7 +164,9 @@ export function ExcluirAtualizacoes() {
           <TableBody>
             {updates?.length > 0 ? (
               updates.map((u: any) => (
-                <TableRow key={u.id} className="hover:bg-slate-50/50 transition-colors">
+                <TableRow key={u.id} 
+                className={`hover:bg-slate-50/50 hover:cursor-pointer transition-colors ${atualizacaoSelecionada?.id === u.id ? "bg-blue-200" : ""}`} 
+                onClick={() => setAtualizacaoSelecionada(u)}>
                   <TableCell className="font-semibold text-slate-700">{
                   (u.aplicacao.id === 1 && "ERP") ||
                   (u.aplicacao.id === 2 && "PREVENDA") ||

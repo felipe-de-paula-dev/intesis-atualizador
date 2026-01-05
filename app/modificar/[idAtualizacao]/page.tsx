@@ -1,15 +1,18 @@
-"use client";
+import ModificarAtualizacao from "@/components/pages/modificar-atualizacoes";
 
-import { SidebarProvider } from "@/components/ui/sidebar";
-import { AppSidebar } from "@/components/ui/appidebar";
-import { ModificarAtualizacao } from "@/components/pages/modificar-atualizacoes";
-import { ClientOnly } from "@/components/ui/clientonly";
+interface PageProps {
+  params: Promise<{ idAtualizacao: string }>;
+}
 
-export default function Home() {
+export default async function Home({ params }: PageProps) {
+
+  const resolvedParams = await params;
+  const idNum = parseInt(resolvedParams.idAtualizacao, 10);
+
   return (
   <div className="flex min-h-screen w-full font-sans">
     <div className="flex bg-slate-50 w-full items-start justify-center">
-      <ModificarAtualizacao />
+      <ModificarAtualizacao idAtualizacao={idNum} />
     </div>
   </div>
   );

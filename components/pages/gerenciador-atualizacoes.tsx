@@ -49,8 +49,6 @@ export function GerenciadorAtualizacoes() {
 
     if (aplicacao !== "0") params.append("aplicacao", aplicacao);
 
-    console.log(`http://192.168.0.19:8080/api/atualizacao/pesquisar?${params.toString()}`)
-
     const response = await fetch(`http://192.168.0.19:8080/api/atualizacao/pesquisar?${params.toString()}`);
 
     const data = await response.json();
@@ -178,14 +176,6 @@ export function GerenciadorAtualizacoes() {
                             <Edit size={16} />
                         </Button>                    
                     </Link>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="h-8 w-8 hover:text-red-600"
-                      onClick={() => excluirUpdate(u.id)}
-                    >
-                      <Trash2 size={16} />
-                    </Button>
                   </TableCell>
                 </TableRow>
               ))
